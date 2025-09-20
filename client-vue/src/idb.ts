@@ -22,7 +22,7 @@ export const initializeDB = async (): Promise<void> => {
 
 export const test = async (): Promise<void> => {
   let placeholderMessages = [
-    "Hello! This is a sample message.",
+    "Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.Hello! This is a sample message.  Hello! This is a sample message.",
     "Hi there! How are you today?",
     "I'm doing well, thank you for asking.",
     "This chat interface has an adjustable message area.",
@@ -31,7 +31,7 @@ export const test = async (): Promise<void> => {
   ]
   let i:number;
 
-  for(i=0;i<3;i++){
+  for(i=0;i<6;i++){
     placeholderMessages = placeholderMessages.concat(placeholderMessages)
   }
 
@@ -60,8 +60,8 @@ export const cleanupDB = async (): Promise<void> => {
   }
 }
 export const GetSpecificMessages = async (DBID: string) => {
-  var len:number
-  var message:any[]
+  let len:number
+  let message:any[]
   try {
     const db = await openDB("ChatMessages", 1,)
     len = await db.count(DBID);
@@ -72,4 +72,16 @@ export const GetSpecificMessages = async (DBID: string) => {
     console.error('Error opening database:', error)
   }
   return {len:len,message:message}
+}
+export const GetSpecificMessage = async (DBID: string, messageID: number) => {
+  let message:string
+  try {
+    const db = await openDB("ChatMessages", 1,)
+    message = await db.get(DBID,messageID);
+
+    console.log('Database opened successfully')
+  } catch (error) {
+    console.error('Error opening database:', error)
+  }
+  return {message:message}
 }

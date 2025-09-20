@@ -3,6 +3,7 @@
     <!-- Chat message area using new MessageBubble system -->
     <ChatContainer
       ref="chatContainer"
+      class="chat-area"
       :messages="formattedMessages"
       :auto-scroll="true"
       :current-user-id="currentUserId"
@@ -162,17 +163,10 @@ onMounted(async () => {
   box-sizing: border-box;
 }
 
-.chat-messages {
+.chat-area {
   flex: 1;
-  overflow-y: auto;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 15px;
-  resize: vertical;
-  min-height: 300px;
-  max-height: 600px;
-  background-color: #f9f9f9;
+  position: relative;
+  min-height: 0;
 }
 
 .message {

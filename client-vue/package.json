@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@types/dompurify": "^3.2.0",
+    "@types/zxcvbn": "^4.4.5",
     "dompurify": "^3.2.6",
     "highlight.js": "^11.11.1",
     "idb": "^8.0.3",
@@ -28,7 +29,9 @@
     "pinia": "^3.0.3",
     "vue": "^3.5.18",
     "vue-markdown-it": "^0.9.4",
-    "vue-router": "^4.5.1"
+    "vue-router": "^4.5.1",
+    "vue-virtual-scroller": "^2.0.0-beta.8",
+    "zxcvbn": "^4.4.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1",

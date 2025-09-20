@@ -154,11 +154,12 @@ const formatTimestamp = (timestamp: number | Date): string => {
 .message-bubble {
   border-radius: 16px;
   padding: 12px 16px;
-  margin: 8px;
-  max-width: 80%;
+  margin: 8px 0; /* 移除左右margin，只保留上下间距 */
+  width: 100%; /* 设置统一宽度为100% */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
   position: relative;
+  box-sizing: border-box; /* 确保padding不增加总宽度 */
 }
 
 .message-bubble:hover {
@@ -169,23 +170,19 @@ const formatTimestamp = (timestamp: number | Date): string => {
 .message-sent {
   background: linear-gradient(135deg, #007bff, #0056b3);
   color: white;
-  align-self: flex-end;
-  margin-left: auto;
 }
+
 
 .message-received {
   background: #f8f9fa;
   color: #212529;
   border: 1px solid #e9ecef;
-  align-self: flex-start;
-  margin-right: auto;
 }
 
 .message-system {
   background: #fff3cd;
   color: #856404;
   border: 1px solid #ffeaa7;
-  align-self: center;
   text-align: center;
   font-style: italic;
 }

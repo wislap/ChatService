@@ -1,0 +1,400 @@
+
+.form {
+  width: 100%;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+  flex: 1;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  color: #2d3748;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #4c51bf;
+}
+
+.form-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 14px;
+  color: #4a5568;
+}
+
+.checkbox-label input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.checkmark {
+  margin-left: 4px;
+}
+
+.forgot-link,
+.terms-link {
+  color: #4c51bf;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.forgot-link:hover,
+.terms-link:hover {
+  text-decoration: underline;
+}
+
+/* 密码强度样式 */
+.password-strength {
+  margin-top: 8px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.strength-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.strength-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #4a5568;
+}
+
+.strength-score {
+  display: flex;
+  gap: 4px;
+}
+
+.strength-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.strength-suggestions {
+  margin-top: 8px;
+}
+
+.suggestions-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #4a5568;
+  margin: 0 0 4px 0;
+}
+
+.suggestions-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: #718096;
+}
+
+.suggestions-list li {
+  margin-bottom: 2px;
+}
+
+.strength-warning {
+  margin-top: 8px;
+  padding: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #dc2626;
+}
+
+/* 密码匹配样式 */
+.password-match {
+  margin-top: 4px;
+}
+
+.match-status {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.match-status.match {
+  color: #16a34a;
+}
+
+.match-status.no-match {
+  color: #dc2626;
+}
+
+/* 弹窗动画 */
+.modal-enter-active {
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.modal-leave-active {
+  transition: all 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-from .password-alert-modal {
+  transform: scale(0.8) translateY(-50px);
+  opacity: 0;
+}
+
+.modal-leave-to .password-alert-modal {
+  transform: scale(0.95) translateY(20px);
+  opacity: 0;
+}
+
+/* 弹窗遮罩层 */
+.password-alert-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(31, 41, 55, 0.5);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+/* 弹窗主体 */
+.password-alert-modal {
+  width: 100%;
+  max-width: 420px;
+  max-height: 85vh;
+  border-radius: 20px;
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.85) 0%,
+      rgba(255, 255, 255, 0.75) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.15),
+    0 10px 20px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 内容容器 */
+.modal-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+.alert-header {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.5);
+}
+
+.alert-header h3 {
+  margin: 0;
+  color: #dc2626;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.close-button:hover {
+  background: #f3f4f6;
+}
+
+.alert-content {
+  position: relative;
+  z-index: 3;
+  padding: 20px 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.alert-icon {
+  font-size: 32px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.alert-message {
+  font-size: 16px;
+  color: #374151;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.alert-requirement {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.alert-suggestions {
+  margin-bottom: 16px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.alert-suggestions h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.alert-suggestions ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.alert-suggestions li {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.alert-warning {
+  padding: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #dc2626;
+  line-height: 1.4;
+}
+
+.alert-actions {
+  position: relative;
+  z-index: 3;
+  padding: 16px 24px 24px;
+  display: flex;
+  gap: 12px;
+  flex-direction: column;
+  border-top: 1px solid rgba(229, 231, 235, 0.5);
+}
+
+.alert-button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  z-index: 4;
+}
+
+.alert-button.primary {
+  background: #dc2626;
+  color: white;
+}
+
+.alert-button.primary:hover {
+  background: #b91c1c;
+}
+
+/* 响应式设计 */
+@media (max-width: 480px) {
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .form-options {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .password-alert-overlay {
+    padding: 15px;
+  }
+
+  .password-alert-modal {
+    max-width: 100%;
+    border-radius: 16px;
+  }
+
+  .alert-header {
+    padding: 20px 20px 16px;
+  }
+
+  .alert-body {
+    padding: 0 20px 16px;
+  }
+
+  .alert-actions {
+    padding: 16px 20px 20px;
+    flex-direction: column;
+  }
+
+  .close-button {
+    top: 16px;
+    right: 16px;
+  }
+}
+
