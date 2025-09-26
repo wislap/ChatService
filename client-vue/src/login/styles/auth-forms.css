@@ -36,6 +36,16 @@
   border-color: #4c51bf;
 }
 
+.form-input.input-error {
+  border-color: #dc2626;
+}
+
+.error-message {
+  color: #dc2626;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
 .form-options {
   display: flex;
   justify-content: space-between;
@@ -397,4 +407,3 @@
     right: 16px;
   }
 }
-

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import LoginPage from '../login/LoginPage.vue'
 import ChatInterface from '../ChatContainer/ChatInterface.vue'
+import FinnishRegister from '../login/FinnishRegister.vue'
 const routes = [
   {
     path: '/',
@@ -13,7 +14,11 @@ const routes = [
     name: 'Login',
     component: LoginPage
   },
-
+  {
+    path: '/FinnishRegister',
+    name: 'FinnishRegister',
+    component: FinnishRegister
+  },
 ]
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),

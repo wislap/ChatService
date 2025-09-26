@@ -8,9 +8,12 @@
         v-model="loginForm.email"
         type="email"
         class="form-input"
+        :class="{ 'input-error': emailError }"
         placeholder="请输入您的邮箱"
         required
+        @blur="triggerEmailValidation"
       />
+      <p v-if="emailError" class="error-message">请输入有效的邮箱地址</p>
     </div>
 
     <div class="form-group">
@@ -41,7 +44,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, toRef } from 'vue'
+import { useEmailValidator } from '@/utils/authValidators'
 
 // 登录表单数据
 const loginForm = ref({
@@ -50,7 +54,14 @@ const loginForm = ref({
   rememberMe: false
 })
 
+// 使用组合式函数进行邮箱验证
+const { isEmailValid, emailError, triggerEmailValidation } = useEmailValidator(toRef(loginForm.value, 'email'))
+
 const handleLogin = () => {
+  triggerEmailValidation()
+  if (!isEmailValid.value) {
+    return
+  }
   // 在这里处理登录逻辑
   console.log('正在使用以下信息登录:', loginForm.value)
 }
