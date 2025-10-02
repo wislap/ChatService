@@ -2,7 +2,13 @@ from fastapi import APIRouter, BackgroundTasks, Request, HTTPException
 from pydantic import BaseModel, EmailStr, SecretStr
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from datetime import datetime, timedelta
-import hashlib,secrets
+import hashlib
+import secrets
+from sqlalchemy.future import select
+from aiosmtplib.errors import SMTPResponseException
+
+from db.models import User
+from db.database import AsyncSessionLocal
 from logger import logger
 # In-memory database (a simple list) to store request info
 # Each item will be a dictionary: {'timestamp': datetime, 'request_data': dict}
@@ -43,12 +49,14 @@ def cleanup_old_requests():
 
 # --- API Endpoints ---
 
+
 @router.post("/user/register1/")
 async def register_user1(request: UserRegisterRequest, background_tasks: BackgroundTasks):
     request_time = datetime.utcnow()
     random_string = secrets.token_urlsafe(32)
-    hashed_password = hashlib.sha256((request.password + random_string).encode()).hexdigest()
-    verification_url = f"http://localhost:5173/FinnishRegister?token={hashed_password}"
+    token = hashlib.sha256((request.password + random_string).encode()).hexdigest()
+    hashed_password = hashlib.sha256(request.password.encode()).hexdigest()
+    verification_url = f"http://localhost:5173/FinnishRegister?token={token}"
     # Store the request details in the in-memory database
     request_info = {
         "timestamp": request_time,
@@ -56,12 +64,13 @@ async def register_user1(request: UserRegisterRequest, background_tasks: Backgro
         "request_data": {
             "username": request.username,
             "email": request.email,
-            "hashed_password": hashed_password,
+            "token": token,
+            "hashed_password": hashed_password
         }
     }
     request_db.append(request_info)
     """Handles user registration and sends a welcome email."""
-    
+
     html_content = f"""
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -148,28 +157,49 @@ async def register_user1(request: UserRegisterRequest, background_tasks: Backgro
         body=html_content,
         subtype=MessageType.html
     )
-    
-    background_tasks.add_task(fastmail.send_message, message)
-    
+    try:
+        background_tasks.add_task(fastmail.send_message, message)
+    except SMTPResponseException as e:
+        # 邮件已经发出，但关闭连接时报错，忽略即可
+        logger.warning(f"Ignore SMTP quit error: {e}")
     logger.trace(request_db)
     background_tasks.add_task(cleanup_old_requests)
 
     return {"message": "User registered successfully", "username": request.username}
+
 
 @router.get("/user/verify-email/")
 async def verify_email(token: str):
     """Verifies the user's email using the provided token."""
     logger.info(f"Attempting to verify token: {token}")
     logger.info(f"Current request_db state: {request_db}")
-    
+
     for req in request_db:
         # Check if the token matches and it has not been verified yet
-        if req["request_data"]["hashed_password"] == token and not req["verified"]:
-            req["verified"] = True
-            # In a real application, you would now save the user to your main user database.
-            # For example: create_user(username=req['request_data']['username'], email=req['request_data']['email'], ...)
-            logger.success(f"Successfully verified email for user: {req['request_data']['username']}")
+        if req["request_data"]["token"] == token and not req["verified"]:
+            # req["verified"] = True
+            
+            async with AsyncSessionLocal() as session:
+                # 检查是否已存在
+                result = await session.execute(
+                    select(User).where(User.username == req["request_data"]["username"])
+                )
+                existing_user = result.scalars().first()
+                if existing_user:
+                    raise HTTPException(status_code=400, detail="用户已存在")
+
+                new_user = User(
+                    username=req["request_data"]["username"],
+                    email=req["request_data"]["email"],
+                    hashed_password=req["request_data"]["hashed_password"],
+                )
+                session.add(new_user)
+                await session.commit()
+                await session.refresh(new_user)
+            logger.success(
+                f"Successfully verified email for user: {req['request_data']['username']}")
             return {"message": "Email verified successfully. Your account is now active."}
 
     # If the loop completes without finding a valid, unverified token
-    raise HTTPException(status_code=400, detail="Invalid, expired, or already used verification token.")
+    raise HTTPException(
+        status_code=400, detail="Invalid, expired, or already used verification token.")

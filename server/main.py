@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from router.users.login import router as user_login_router
+from db.database import engine
+from db.models import Base
 app = FastAPI()
 router = user_login_router
 app.include_router(router)
@@ -17,6 +19,12 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
+@app.on_event("startup")
+async def on_startup():
+    async with engine.begin() as conn:
+        # 等价于 CREATE TABLE IF NOT EXISTS
+        await conn.run_sync(Base.metadata.create_all)
+        
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
