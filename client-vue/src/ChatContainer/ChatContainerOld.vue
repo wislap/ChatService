@@ -1,23 +1,30 @@
 <template>
   <div class="chat-container">
-    <div class="chat-messages" ref="messagesContainer">
+    <RecycleScroller
+      class="chat-messages"
+      :items="messages"
+      :item-size="160"
+      size-field="height"
+      key-field="id"
+      item-class="message-wrapper"
+      v-slot="{ item }"
+      ref="scroller"
+      @scroll="handleScroll"
+    >
       <MessageBubble
-        v-for="message in messages"
-        :key="message.id"
-        :message="message"
-        :variant="getMessageVariant(message)"
-        :editable="message.editable !== false"
-        :show-buttons="message.showButtons !== false"
+        :message="item"
+        :variant="getMessageVariant(item)"
+        :editable="item.editable !== false"
+        :show-buttons="item.showButtons !== false"
         @edit="handleEdit"
         @copy="handleCopy"
         @delete="handleDelete"
       >
-        <!-- Custom buttons slot -->
-        <template #buttons v-if="message.customButtons">
+        <template #buttons v-if="item.customButtons">
           <button
-            v-for="button in message.customButtons"
+            v-for="button in item.customButtons"
             :key="button.id"
-            @click="button.onClick(message.id)"
+            @click="button.onClick(item.id)"
             class="action-button custom-button"
             :class="button.class"
           >
@@ -25,16 +32,15 @@
           </button>
         </template>
       </MessageBubble>
-    </div>
+    </RecycleScroller>
 
-    <!-- Scroll to bottom button -->
     <button
       v-if="showScrollButton"
-      @click="() => scrollToBottom()"
+      @click="scrollToBottom"
       class="scroll-to-bottom"
-      title="Scroll to bottom"
+      title="滚动到底部"
     >
-      ↓
+      ⬇
     </button>
   </div>
 </template>
@@ -42,6 +48,8 @@
 <script setup lang="ts">
 import { ref, nextTick, watch, onMounted } from 'vue'
 import MessageBubble, { type MessageData } from './MessageBubble.vue'
+import { RecycleScroller } from 'vue-virtual-scroller'
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
 interface CustomButton {
   id: string
@@ -76,7 +84,7 @@ const emit = defineEmits<{
 }>()
 
 // Reactive data
-const messagesContainer = ref<HTMLElement>()
+const scroller = ref()
 const showScrollButton = ref(false)
 const messages = ref<ExtendedMessageData[]>([...props.messages])
 
@@ -87,23 +95,33 @@ watch(() => props.messages, (newMessages) => {
     nextTick(() => scrollToBottom())
   }
 }, { deep: true })
+const handleScroll = (event: Event) => {
+  const element = event.target as HTMLElement
+  if (!element) return
 
-// Monitor scroll position
-const handleScroll = () => {
-  if (!messagesContainer.value) return
-
-  const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value
+  const { scrollTop, scrollHeight, clientHeight } = element
   const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
   showScrollButton.value = !isNearBottom
 }
 
-// Scroll to bottom
-const scrollToBottom = (smooth = true) => {
-  if (!messagesContainer.value) return
+// 修复滚动到底部
+const scrollToBottom = () => {
+  if (!scroller.value || !messages.value.length) return
 
-  messagesContainer.value.scrollTo({
-    top: messagesContainer.value.scrollHeight,
-    behavior: smooth ? 'smooth' : 'auto'
+  nextTick(() => {
+    try {
+      if (typeof scroller.value.scrollToItem === 'function') {
+        scroller.value.scrollToItem(messages.value.length - 1)
+      } else {
+        // 备用方案
+        const element = scroller.value.$el
+        if (element) {
+          element.scrollTop = element.scrollHeight
+        }
+      }
+    } catch (error) {
+      console.warn('Scroll to bottom failed:', error)
+    }
   })
 }
 
@@ -197,33 +215,32 @@ defineExpose({
 })
 
 onMounted(() => {
-  if (messagesContainer.value) {
-    messagesContainer.value.addEventListener('scroll', handleScroll)
-
-    // Scroll to bottom initially if autoScroll is enabled
-    if (props.autoScroll && messages.value.length > 0) {
-      nextTick(() => scrollToBottom(false))
-    }
+  // Scroll to bottom initially if autoScroll is enabled
+  if (props.autoScroll && messages.value.length > 0) {
+    nextTick(() => scrollToBottom())
   }
 })
 </script>
 
 <style scoped>
+
 .chat-container {
   position: relative;
   height: 100%;
-  display: flex;
-  flex-direction: column;
+  width: 100%;
 }
 
 .chat-messages {
-  flex: 1;
-  overflow-y: auto;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  scroll-behavior: smooth;
+}
+
+:deep(.message-item) {
+  margin-bottom: 8px;
 }
 
 /* Custom scrollbar */

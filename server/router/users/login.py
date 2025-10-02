@@ -1,8 +1,9 @@
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, BackgroundTasks, Request, HTTPException
 from pydantic import BaseModel, EmailStr, SecretStr
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from datetime import datetime, timedelta
-
+import hashlib,secrets
+from logger import logger
 # In-memory database (a simple list) to store request info
 # Each item will be a dictionary: {'timestamp': datetime, 'request_data': dict}
 request_db = []
@@ -38,13 +39,29 @@ def cleanup_old_requests():
     # This is a thread-safe way to modify the list in place
     global request_db
     request_db[:] = [req for req in request_db if req['timestamp'] > twenty_four_hours_ago]
-    print(f"Cleaned up old requests. Current DB size: {len(request_db)}")
+    logger.info(f"Cleaned up old requests. Current DB size: {len(request_db)}")
 
 # --- API Endpoints ---
 
 @router.post("/user/register1/")
 async def register_user1(request: UserRegisterRequest, background_tasks: BackgroundTasks):
+    request_time = datetime.utcnow()
+    random_string = secrets.token_urlsafe(32)
+    hashed_password = hashlib.sha256((request.password + random_string).encode()).hexdigest()
+    verification_url = f"http://localhost:5173/FinnishRegister?token={hashed_password}"
+    # Store the request details in the in-memory database
+    request_info = {
+        "timestamp": request_time,
+        "verified": False,
+        "request_data": {
+            "username": request.username,
+            "email": request.email,
+            "hashed_password": hashed_password,
+        }
+    }
+    request_db.append(request_info)
     """Handles user registration and sends a welcome email."""
+    
     html_content = f"""
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -115,7 +132,7 @@ async def register_user1(request: UserRegisterRequest, background_tasks: Backgro
             <p>您好, {request.username}！</p>
             <p>感谢您的注册。请点击下方的按钮来完成您的注册流程并验证您的邮箱地址。</p>
             <div class="button-container">
-                <a href="http://localhost:5173/FinnishRegister" class="button">完成注册</a>
+                <a href="{verification_url}" class="button">完成注册</a>
             </div>
         </div>
         <div class="footer">
@@ -134,17 +151,25 @@ async def register_user1(request: UserRegisterRequest, background_tasks: Backgro
     
     background_tasks.add_task(fastmail.send_message, message)
     
-    request_time = datetime.utcnow()
-
-    # Store the request details in the in-memory database
-    request_info = {
-        "timestamp": request_time,
-        "request_data": {
-            "username": request.username,
-            "email": request.email
-        }
-    }
-    request_db.append(request_info)
+    logger.trace(request_db)
     background_tasks.add_task(cleanup_old_requests)
 
     return {"message": "User registered successfully", "username": request.username}
+
+@router.get("/user/verify-email/")
+async def verify_email(token: str):
+    """Verifies the user's email using the provided token."""
+    logger.info(f"Attempting to verify token: {token}")
+    logger.info(f"Current request_db state: {request_db}")
+    
+    for req in request_db:
+        # Check if the token matches and it has not been verified yet
+        if req["request_data"]["hashed_password"] == token and not req["verified"]:
+            req["verified"] = True
+            # In a real application, you would now save the user to your main user database.
+            # For example: create_user(username=req['request_data']['username'], email=req['request_data']['email'], ...)
+            logger.success(f"Successfully verified email for user: {req['request_data']['username']}")
+            return {"message": "Email verified successfully. Your account is now active."}
+
+    # If the loop completes without finding a valid, unverified token
+    raise HTTPException(status_code=400, detail="Invalid, expired, or already used verification token.")

@@ -1,38 +1,45 @@
 <template>
   <div class="chat-container">
-    <RecycleScroller
+    <DynamicScroller
       class="chat-messages"
       :items="messages"
-      :item-size="160"
-      size-field="height"
+      :min-item-size="80"
       key-field="id"
-      item-class="message-wrapper"
-      v-slot="{ item }"
+      v-slot="{ item, index, active }"
       ref="scroller"
       @scroll="handleScroll"
     >
-      <MessageBubble
-        :message="item"
-        :variant="getMessageVariant(item)"
-        :editable="item.editable !== false"
-        :show-buttons="item.showButtons !== false"
-        @edit="handleEdit"
-        @copy="handleCopy"
-        @delete="handleDelete"
+      <DynamicScrollerItem
+        :item="item"
+        :active="active"
+        :size-dependencies="[
+          item.content,
+        ]"
+        :data-index="index"
       >
-        <template #buttons v-if="item.customButtons">
-          <button
-            v-for="button in item.customButtons"
-            :key="button.id"
-            @click="button.onClick(item.id)"
-            class="action-button custom-button"
-            :class="button.class"
-          >
-            {{ button.label }}
-          </button>
-        </template>
-      </MessageBubble>
-    </RecycleScroller>
+        <MessageBubble
+          :message="item"
+          :variant="getMessageVariant(item)"
+          :editable="item.editable !== false"
+          :show-buttons="item.showButtons !== false"
+          @edit="handleEdit"
+          @copy="handleCopy"
+          @delete="handleDelete"
+        >
+          <template #buttons v-if="item.customButtons">
+            <button
+              v-for="button in item.customButtons"
+              :key="button.id"
+              @click="button.onClick(item.id)"
+              class="action-button custom-button"
+              :class="button.class"
+            >
+              {{ button.label }}
+            </button>
+          </template>
+        </MessageBubble>
+      </DynamicScrollerItem>
+    </DynamicScroller>
 
     <button
       v-if="showScrollButton"
@@ -48,7 +55,7 @@
 <script setup lang="ts">
 import { ref, nextTick, watch, onMounted } from 'vue'
 import MessageBubble, { type MessageData } from './MessageBubble.vue'
-import { RecycleScroller } from 'vue-virtual-scroller'
+import { DynamicScroller,DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
 interface CustomButton {
@@ -110,15 +117,7 @@ const scrollToBottom = () => {
 
   nextTick(() => {
     try {
-      if (typeof scroller.value.scrollToItem === 'function') {
-        scroller.value.scrollToItem(messages.value.length - 1)
-      } else {
-        // 备用方案
-        const element = scroller.value.$el
-        if (element) {
-          element.scrollTop = element.scrollHeight
-        }
-      }
+      scroller.value.scrollToBottom()
     } catch (error) {
       console.warn('Scroll to bottom failed:', error)
     }
@@ -242,7 +241,9 @@ onMounted(() => {
 :deep(.message-item) {
   margin-bottom: 8px;
 }
-
+:deep(.vue-recycle-scroller__item-view) {
+  margin-bottom: 32px;
+}
 /* Custom scrollbar */
 .chat-messages::-webkit-scrollbar {
   width: 8px;

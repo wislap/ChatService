@@ -153,6 +153,7 @@ import { ref, computed, toRef } from 'vue'
 import { useEmailValidator, usePasswordValidator } from '@/utils/authValidators'
 import api from '@/utils/api'
 
+
 // 注册表单数据
 const registerForm = ref({
   firstName: '',
@@ -219,14 +220,20 @@ const closeVerificationModal = () => {
   showVerificationModal.value = false
 }
 
-const sendVerificationCode = () => {
+const sendVerificationCode = async () => {
   console.log(`正在向 ${registerForm.value.email} 发送验证码...`)
-  api.post('/user/register1',{
-    username: registerForm.value.lastName,
-    password: registerForm.value.password,
-    email: registerForm.value.email
-  })
-  closeVerificationModal()
+  try {
+    await api.post('/user/register1', {
+      username: registerForm.value.lastName,
+      password: registerForm.value.password,
+      email: registerForm.value.email
+    })
+    closeVerificationModal()
+  } catch (error) {
+    console.error('注册失败:', error)
+    // 在这里可以添加错误处理逻辑，例如显示一个错误提示
+    closeVerificationModal()
+  }
 }
 </script>
 
