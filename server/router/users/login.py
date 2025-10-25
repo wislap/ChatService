@@ -13,7 +13,8 @@ from logger import logger
 # In-memory database (a simple list) to store request info
 # Each item will be a dictionary: {'timestamp': datetime, 'request_data': dict}
 request_db = []
-
+SECRET_KEY = "your_secret"
+expiresIn = 7 * 24 * 60 * 60 * 1000
 # --- Mail Configuration ---
 MAIL_PASSWORD = "aqtztupwyhmpdabi"
 conf = ConnectionConfig(
@@ -203,3 +204,11 @@ async def verify_email(token: str):
     # If the loop completes without finding a valid, unverified token
     raise HTTPException(
         status_code=400, detail="Invalid, expired, or already used verification token.")
+class UserLoginRequest(BaseModel):
+    email: str
+    password: str
+    
+@router.post("/user/login/")
+async def login_user(request: UserLoginRequest):
+    logger.trace(f"Login attempt for email: {request.email}, password: {request.password}")
+    return {"token": "token","expiresIn":expiresIn, "message": "User logged in successfully"}
