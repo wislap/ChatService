@@ -2,6 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Request, HTTPException
 from pydantic import BaseModel, EmailStr, SecretStr
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from datetime import datetime, timedelta
+from jose import jwt
 import hashlib
 import secrets
 from sqlalchemy.future import select
@@ -205,10 +206,40 @@ async def verify_email(token: str):
     raise HTTPException(
         status_code=400, detail="Invalid, expired, or already used verification token.")
 class UserLoginRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
     
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    
+def verify_password(plain_password: str, hashed_password: str):
+    # 你目前好像是 sha256 存的密码（不是 bcrypt）
+    return hashlib.sha256(plain_password.encode()).hexdigest() == hashed_password
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=expiresIn))
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256"
+)
+    return encoded_jwt, expire
+
 @router.post("/user/login/")
 async def login_user(request: UserLoginRequest):
-    logger.trace(f"Login attempt for email: {request.email}, password: {request.password}")
-    return {"token": "token","expiresIn":expiresIn, "message": "User logged in successfully"}
+    async with AsyncSessionLocal() as session:
+        logger.trace(f"Login attempt for email: {request.email}, password: {request.password}")
+        result = await session.execute(select(User).where(User.email == request.email))
+        user = result.scalars().first()
+        if not user or not verify_password(request.password, user.hashed_password):
+            raise HTTPException(status_code=401, detail="邮箱或密码错误")
+
+        token, expire = create_access_token({"sub": str(user.id)})
+        expires_in = int((expire - datetime.utcnow()).total_seconds())
+        
+        return {
+            "token": token,
+            "expires_in": expires_in,
+        }
+

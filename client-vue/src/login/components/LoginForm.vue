@@ -94,6 +94,7 @@ const handleLogin = async () => {
       password: loginForm.value.password
     })
     const token = res.data.token
+    console.log('Received token:', token)
     if (!token) throw new Error('后端未返回 token')
     // 计算过期时间：默认 7 天
     const expiresIn = res.data.expiresIn ? res.data.expiresIn * 1000 : 7 * 24 * 60 * 60 * 1000
