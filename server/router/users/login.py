@@ -232,9 +232,15 @@ async def login_user(request: UserLoginRequest):
         logger.trace(f"Login attempt for email: {request.email}, password: {request.password}")
         result = await session.execute(select(User).where(User.email == request.email))
         user = result.scalars().first()
-        if not user or not verify_password(request.password, user.hashed_password):
-            raise HTTPException(status_code=401, detail="邮箱或密码错误")
-
+        if not user:
+            raise HTTPException(status_code=404, detail={"code": "USER_NOT_FOUND", "message": "账户不存在"})
+        
+        elif not verify_password(request.password, user.hashed_password):
+            raise HTTPException(status_code=401, detail={"code": "USER_IDENTIFICATION_FAILED", "message": "账户或者密码错误"})
+        
+        elif user.is_banned:
+            raise HTTPException(status_code=403, detail={"code": "USER_BANNED", "message": "账户已被封禁，请联系管理员"})
+        
         token, expire = create_access_token({"sub": str(user.id)})
         expires_in = int((expire - datetime.utcnow()).total_seconds())
         
