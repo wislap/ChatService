@@ -64,13 +64,18 @@ const isLocalTokenValid = (): boolean => {
   const expiryTime = Number(expiry)
   return now < expiryTime
 }
-// 自动登录逻辑
+import { useRouter } from 'vue-router'
+// 自动登录逻辑（改为使用 router.push 并延迟，避免同步卸载导致的闪烁）
+const router = useRouter()
 const autoLogin = (): void => {
   const token = localStorage.getItem('token')
   if (token) {
     sessionStorage.setItem('token', token)
     console.log('✅ 自动登录成功，token 已同步到 sessionStorage')
-    window.location.href = '/' // 进入主界面
+    // 延迟路由跳转，给 Vue 过渡一帧时间完成渲染，减少白屏闪烁
+    setTimeout(() => {
+      router.push('/')
+    }, 0)
   }
 }
 const handleLogin = async () => {
@@ -112,10 +117,13 @@ const handleLogin = async () => {
 
     console.log('登录成功，token 已保存')
 
-    // 跳转（可用 router.push）
-    window.location.href = '/'
-  } catch (error: any) {
-    console.error('登录失败:', error.message)
+    // 跳转（改为 router.push 并延迟）
+    setTimeout(() => {
+      router.push('/')
+    }, 0)
+  } catch (error) {
+    const msg = (error as Error)?.message ?? String(error)
+    console.error('登录失败:', msg)
   }
 }
 
