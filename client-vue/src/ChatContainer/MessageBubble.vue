@@ -27,27 +27,21 @@
       </div>
     </div>
 
-    <!-- Button area -->
+    <!-- Button area - 改为表白墙功能 -->
     <div class="button-area" v-if="showButtons">
       <slot name="buttons">
         <button
-          v-if="editable"
-          @click="$emit('edit', message.id)"
-          class="action-button edit-button"
+          @click="$emit('like', message.id)"
+          class="action-button like-button"
+          :class="{ liked: message.liked }"
         >
-          Edit
-        </button>
-        <button
-          @click="$emit('copy', message.content)"
-          class="action-button copy-button"
-        >
-          Copy
+          ❤️ {{ message.likes || 0 }}
         </button>
         <button
           @click="$emit('delete', message.id)"
           class="action-button delete-button"
         >
-          Delete
+          删除
         </button>
       </slot>
     </div>
@@ -88,6 +82,8 @@ export interface MessageData {
   timestamp: number | Date
   type: 'markdown' | 'text' | 'image' | string
   alt?: string
+  likes?: number
+  liked?: boolean
 }
 
 interface Props {
@@ -104,8 +100,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 defineEmits<{
-  edit: [messageId: string]
-  copy: [content: string]
+  like: [messageId: string]
   delete: [messageId: string]
 }>()
 
@@ -127,9 +122,31 @@ const md = new MarkdownIt({
   }
 })
 
+// 插件解析函数（修复emoji支持 - 使用更通用的方式）
 const resolvePlugin = (p: unknown): Function | null => {
   if (typeof p === 'function') return p
   if (p && typeof (p as any).default === 'function') return (p as any).default
+
+  // 特殊处理emoji插件 - 尝试常见的属性名
+  if (p && typeof p === 'object' && p !== null) {
+    const obj = p as any
+    // 尝试常见的markdown-it插件属性名
+    const possibleKeys = ['replace', 'render', 'plugin', 'default', 'emoji']
+
+    for (const key of possibleKeys) {
+      if (key in obj && typeof obj[key] === 'function') {
+        console.log(`[MessageBubble] Found ${key} function in plugin object, using it`)
+        return obj[key]
+      }
+    }
+
+    // 如果没有找到函数，检查是否是数组中的第一个元素
+    if (Array.isArray(obj) && obj.length > 0 && typeof obj[0] === 'function') {
+      console.log('[MessageBubble] Found function in array[0], using it')
+      return obj[0]
+    }
+  }
+
   return null
 }
 
@@ -139,23 +156,43 @@ const supPlugin = resolvePlugin(markdownItSup)
 const markPlugin = resolvePlugin(markdownItMark)
 const katexPlugin = resolvePlugin(markdownItKatex)
 
-// 注册插件（有的包在不同打包方式下导出可能不同，先检查再 use）
-if (emojiPlugin) {
-  md.use(emojiPlugin) // 表情支持 :smile:
-} else {
-  console.warn('[MessageBubble] markdown-it-emoji plugin not available or invalid')
+// 注册插件（带错误处理和类型断言）
+const registerPlugins = () => {
+  try {
+    if (emojiPlugin) {
+      console.log('[MessageBubble] Registering emoji plugin')
+      md.use(emojiPlugin as any) // 表情支持 :smile:
+    } else {
+      console.warn('[MessageBubble] markdown-it-emoji plugin not available or invalid')
+    }
+    if (subPlugin) {
+      console.log('[MessageBubble] Registering sub plugin')
+      md.use(subPlugin as any)        // 下标 H~2~O
+    }
+    if (supPlugin) {
+      console.log('[MessageBubble] Registering sup plugin')
+      md.use(supPlugin as any)        // 上标 X^2^
+    }
+    if (markPlugin) {
+      console.log('[MessageBubble] Registering mark plugin')
+      md.use(markPlugin as any)      // 高亮 ==marked==
+    }
+    if (katexPlugin) {
+      console.log('[MessageBubble] Registering katex plugin')
+      md.use(katexPlugin as any, {    // LaTeX 数学公式
+        throwOnError: false,
+        errorColor: '#cc0000'
+      })
+    } else {
+      console.warn('[MessageBubble] markdown-it-katex plugin not available or invalid')
+    }
+  } catch (error) {
+    console.warn('[MessageBubble] Failed to register plugins:', error)
+  }
 }
-if (subPlugin) md.use(subPlugin)        // 下标 H~2~O
-if (supPlugin) md.use(supPlugin)        // 上标 X^2^
-if (markPlugin) md.use(markPlugin)      // 高亮 ==marked==
-if (katexPlugin) {
-  md.use(katexPlugin, {    // LaTeX 数学公式
-    throwOnError: false,
-    errorColor: '#cc0000'
-  })
-} else {
-  console.warn('[MessageBubble] markdown-it-katex plugin not available or invalid')
-}
+
+// 立即注册插件
+registerPlugins()
 
 // Computed properties
 const bubbleClass = computed(() => {
@@ -169,15 +206,21 @@ const bubbleClass = computed(() => {
 
 const renderedMarkdown = computed(() => {
   if (props.message.type !== 'markdown') return ''
-  const rendered = md.render(props.message.content)
-  return DOMPurify.sanitize(rendered, {
-    ALLOWED_TAGS: [
-      'p', 'br', 'strong', 'em', 'u', 'del', 'code', 'pre',
-      'a', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3',
-      'h4', 'h5', 'h6', 'sub', 'sup', 'mark', 'span', 'div'
-    ],
-    ALLOWED_ATTR: ['href', 'class', 'style']
-  })
+
+  try {
+    const rendered = md.render(props.message.content)
+    return DOMPurify.sanitize(rendered, {
+      ALLOWED_TAGS: [
+        'p', 'br', 'strong', 'em', 'u', 'del', 'code', 'pre',
+        'a', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3',
+        'h4', 'h5', 'h6', 'sub', 'sup', 'mark', 'span', 'div'
+      ],
+      ALLOWED_ATTR: ['href', 'class', 'style']
+    })
+  } catch (error) {
+    console.warn('[MessageBubble] Failed to render markdown:', error)
+    return DOMPurify.sanitize(props.message.content)
+  }
 })
 
 // Utility functions
@@ -198,26 +241,29 @@ const formatTimestamp = (timestamp: number | Date): string => {
 .message-bubble {
   border-radius: 16px;
   padding: 12px 16px;
-  margin: 8px 0; /* 移除左右margin，只保留上下间距 */
-  width: 100%; /* 设置统一宽度为100% */
+  margin: 8px 0;
+  width: 100%;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
   position: relative;
-  box-sizing: border-box; /* 确保padding不增加总宽度 */
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #e9ecef;
 }
 
 .message-bubble:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* Variant styles */
+/* Variant styles - 调整为表白墙风格 */
 .message-sent {
-  background: linear-gradient(135deg, #007bff, #0056b3);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  border: none;
 }
 
 .message-received {
-  background: #f8f9fa;
+  background: #fff;
   color: #212529;
   border: 1px solid #e9ecef;
 }
@@ -309,7 +355,7 @@ const formatTimestamp = (timestamp: number | Date): string => {
 }
 
 .markdown-content :deep(blockquote) {
-  border-left: 4px solid #007bff;
+  border-left: 4px solid #667eea;
   margin: 8px 0;
   padding-left: 12px;
   opacity: 0.8;
@@ -371,7 +417,7 @@ const formatTimestamp = (timestamp: number | Date): string => {
 /* Button area styles */
 .button-area {
   display: flex;
-  gap: 8px;
+  gap: 16px;
   justify-content: flex-end;
   margin-top: 8px;
   padding-top: 8px;
@@ -383,38 +429,39 @@ const formatTimestamp = (timestamp: number | Date): string => {
 }
 
 .action-button {
-  padding: 4px 12px;
+  padding: 4px 8px;
   border: none;
   border-radius: 12px;
-  font-size: 0.8rem;
+  font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
-  background: rgba(0, 0, 0, 0.1);
+  background: transparent;
   color: inherit;
-}
-
-.message-sent .action-button {
-  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .action-button:hover {
+  background: rgba(0, 0, 0, 0.05);
   transform: translateY(-1px);
-  opacity: 0.8;
 }
 
-.edit-button:hover {
-  background: #28a745;
-  color: white;
+.message-sent .action-button:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
-.copy-button:hover {
-  background: #17a2b8;
-  color: white;
+.like-button:hover {
+  color: #ff6b6b;
+}
+
+.like-button.liked {
+  color: #ff6b6b;
 }
 
 .delete-button:hover {
-  background: #dc3545;
-  color: white;
+  background: rgba(220, 53, 69, 0.1);
+  color: #dc3545;
 }
 
 /* Type-specific styles */

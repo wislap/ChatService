@@ -23,8 +23,7 @@
             :variant="getMessageVariant(item)"
             :editable="item.editable !== false"
             :show-buttons="item.showButtons !== false"
-            @edit="handleEdit"
-            @copy="handleCopy"
+            @like="handleLike"
             @delete="handleDelete"
           >
             <template #buttons v-if="item.customButtons">
@@ -43,14 +42,14 @@
       </DynamicScroller>
     </div>
 
-    <!-- 滚动到底部按钮 -->
+    <!-- 滚动到顶部按钮 -->
     <button
       v-if="showScrollButton"
-      @click="scrollToBottom"
-      class="scroll-to-bottom"
-      title="滚动到底部"
+      @click="scrollToTop"
+      class="scroll-to-top"
+      title="滚动到顶部"
     >
-      ⬇
+      ⬆
     </button>
   </div>
 </template>
@@ -72,6 +71,8 @@ interface ExtendedMessageData extends MessageData {
   editable?: boolean
   showButtons?: boolean
   customButtons?: CustomButton[]
+  likes?: number
+  liked?: boolean
 }
 
 interface Props {
@@ -82,14 +83,13 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   messages: () => [],
-  autoScroll: true,
+  autoScroll: false, // 表白墙不需要自动滚动到最新（因为最新已经在上面）
   currentUserId: 'current-user'
 })
 
 const emit = defineEmits<{
-  messageEdit: [messageId: string, content: string]
+  messageLike: [messageId: string]
   messageDelete: [messageId: string]
-  messageCopy: [content: string]
   messagesChange: [messages: ExtendedMessageData[]]
 }>()
 
@@ -101,30 +101,99 @@ const messages = ref<ExtendedMessageData[]>([...props.messages])
 // Watch for prop changes
 watch(() => props.messages, (newMessages) => {
   messages.value = [...newMessages]
-  if (props.autoScroll) {
-    nextTick(() => scrollToBottom())
-  }
 }, { deep: true })
 
 const handleScroll = (event: Event) => {
   const element = event.target as HTMLElement
   if (!element) return
 
-  const { scrollTop, scrollHeight, clientHeight } = element
-  const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
-  showScrollButton.value = !isNearBottom
+  const { scrollTop } = element
+  // 在表白墙中，最新消息在顶部，所以当滚动位置不在顶部时显示按钮
+  const isNearTop = scrollTop < 100
+  showScrollButton.value = !isNearTop
 }
 
-const scrollToBottom = () => {
+const scrollToTop = () => {
   if (!scroller.value || !messages.value.length) return
 
   nextTick(() => {
     try {
-      scroller.value.scrollToBottom()
+      // 方案1：尝试使用API方法
+      if (scroller.value.scrollToItem && messages.value.length > 0) {
+        scroller.value.scrollToItem(messages.value[0])
+        return
+      }
+
+      // 方案2：查找滚动容器并使用平滑滚动
+      const scrollContainer = findScrollContainer()
+      if (scrollContainer) {
+        smoothScrollToTop(scrollContainer)
+        return
+      }
+
+      // 方案3：直接操作DOM
+      const element = scroller.value?.$el
+      if (element) {
+        element.scrollTop = 0
+      }
     } catch (error) {
-      console.warn('Scroll to bottom failed:', error)
+      console.warn('Scroll to top failed:', error)
+      // 最后的备选方案
+      const element = scroller.value?.$el
+      if (element) {
+        element.scrollTop = 0
+      }
     }
   })
+}
+
+// 查找滚动容器
+const findScrollContainer = (): HTMLElement | null => {
+  if (!scroller.value) return null
+
+  // 尝试多种方式获取滚动容器
+  const container = scroller.value.$el?.querySelector('.vue-recycle-scroller') as HTMLElement
+  if (container && container.scrollTop !== undefined) {
+    return container
+  }
+
+  // 备选：使用组件本身的DOM
+  const el = scroller.value.$el as HTMLElement
+  if (el && el.scrollTop !== undefined) {
+    return el
+  }
+
+  return null
+}
+
+// 平滑滚动到顶部
+const smoothScrollToTop = (container: HTMLElement) => {
+  const currentScrollTop = container.scrollTop
+  const duration = 600 // 动画持续时间（毫秒）
+  const startTime = performance.now()
+
+  const animateScroll = (currentTime: number) => {
+    const elapsed = currentTime - startTime
+    const progress = Math.min(elapsed / duration, 1)
+
+    // 使用easeOutCubic缓动函数
+    const easeProgress = 1 - Math.pow(1 - progress, 3)
+    const newScrollTop = currentScrollTop * (1 - easeProgress)
+
+    container.scrollTop = newScrollTop
+
+    if (progress < 1) {
+      requestAnimationFrame(animateScroll)
+    }
+  }
+
+  // 检查是否支持现代滚动API
+  if ('scrollBehavior' in document.documentElement.style && container.scrollTo) {
+    container.scrollTo({ top: 0, behavior: 'smooth' })
+  } else {
+    // 使用自定义动画
+    requestAnimationFrame(animateScroll)
+  }
 }
 
 const getMessageVariant = (message: ExtendedMessageData): 'sent' | 'received' | 'system' => {
@@ -134,20 +203,8 @@ const getMessageVariant = (message: ExtendedMessageData): 'sent' | 'received' | 
 }
 
 // Event handlers
-const handleEdit = (messageId: string) => {
-  const message = messages.value.find(m => m.id === messageId)
-  if (message) {
-    emit('messageEdit', messageId, message.content)
-  }
-}
-
-const handleCopy = async (content: string) => {
-  try {
-    await navigator.clipboard.writeText(content)
-    emit('messageCopy', content)
-  } catch (err) {
-    console.error('Failed to copy text: ', err)
-  }
+const handleLike = (messageId: string) => {
+  emit('messageLike', messageId)
 }
 
 const handleDelete = (messageId: string) => {
@@ -163,10 +220,6 @@ const handleDelete = (messageId: string) => {
 const addMessage = (message: ExtendedMessageData) => {
   messages.value.push(message)
   emit('messagesChange', messages.value)
-
-  if (props.autoScroll) {
-    nextTick(() => scrollToBottom())
-  }
 }
 
 const updateMessage = (messageId: string, updates: Partial<ExtendedMessageData>) => {
@@ -213,13 +266,11 @@ defineExpose({
   insertMessage,
   getMessages,
   getMessageById,
-  scrollToBottom
+  scrollToTop
 })
 
 onMounted(() => {
-  if (props.autoScroll && messages.value.length > 0) {
-    nextTick(() => scrollToBottom())
-  }
+  // 表白墙不需要初始化滚动，因为消息按时间倒序，最新的在上面
 })
 </script>
 
@@ -264,14 +315,14 @@ onMounted(() => {
 }
 
 .scroller::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #ff6b6b, #ee5a52);
   border-radius: 5px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 
 .scroller::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #5a67d8, #6b46c1);
+  background: linear-gradient(135deg, #ff5252, #e53e3e);
   background-clip: content-box;
 }
 
@@ -290,34 +341,34 @@ onMounted(() => {
   margin-bottom: 32px;
 }
 
-/* 滚动到底部按钮 - 保持原有样式 */
-.scroll-to-bottom {
+/* 滚动到顶部按钮 - 表白墙风格 */
+.scroll-to-top {
   position: absolute;
   bottom: 24px;
   right: 24px;
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #ff6b6b, #ee5a52);
   color: white;
   border: none;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 16px rgba(255, 107, 107, 0.4);
   transition: all 0.3s ease;
   font-size: 20px;
   z-index: 10;
   backdrop-filter: blur(10px);
 }
 
-.scroll-to-bottom:hover {
-  background: linear-gradient(135deg, #5a67d8, #6b46c1);
+.scroll-to-top:hover {
+  background: linear-gradient(135deg, #ff5252, #e53e3e);
   transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+  box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
 }
 
-.scroll-to-bottom:active {
+.scroll-to-top:active {
   transform: translateY(0) scale(0.95);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 2px 8px rgba(255, 107, 107, 0.4);
 }
 
 /* Custom button styles */
@@ -331,7 +382,7 @@ onMounted(() => {
     padding: 16px;
   }
 
-  .scroll-to-bottom {
+  .scroll-to-top {
     width: 42px;
     height: 42px;
     font-size: 18px;
