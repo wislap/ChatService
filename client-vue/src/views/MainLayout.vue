@@ -27,6 +27,12 @@
             </RouterLink>
           </li>
           <li class="nav-item">
+            <RouterLink to="/chat" class="nav-link" active-class="active">
+              <span class="nav-marker" aria-hidden="true"></span>
+              <span class="nav-label">聊天</span>
+            </RouterLink>
+          </li>
+          <li class="nav-item">
             <RouterLink to="/login" class="nav-link" active-class="active">
               <span class="nav-marker" aria-hidden="true"></span>
               <span class="nav-label">登录</span>

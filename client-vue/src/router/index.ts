@@ -3,6 +3,7 @@ import LoginPage from '../login/LoginPage.vue'
 import FinnishRegister from '../login/FinnishRegister.vue'
 import MainLayout from '../views/MainLayout.vue'
 import Announcement from '../views/Announcement.vue'
+import ChatInterface from '../ChatContainer/ChatInterface.vue'
 
 const routes = [
   {
@@ -48,6 +49,12 @@ const routes = [
         name: 'WallPage',
         component: () => import('../views/wall/WallPage.vue'),
         meta: { title: '表白墙' }
+      },
+      {
+        path: 'chat',
+        name: 'Chat',
+        component: ChatInterface,
+        meta: { title: '聊天' }
       }
     ]
   }
