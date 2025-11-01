@@ -13,8 +13,8 @@ from datetime import datetime
 # 添加当前目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from db.database import AsyncSessionLocal, engine
-from db.models import Base, User, ChatMessage
+from database import AsyncSessionLocal, engine
+from models import Base, User, ChatMessage
 from sqlalchemy import func, select
 
 async def get_or_create_test_users(session, count=5):
