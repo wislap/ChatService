@@ -78,7 +78,8 @@ const closeSidebar = () => {
 <style scoped>
 .main-layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   box-sizing: border-box;
   position: relative;
 }
@@ -212,9 +213,20 @@ const closeSidebar = () => {
 /* Content area */
 .content-area {
   flex: 1;
-  padding: 24px;
+  padding: 12px;
   box-sizing: border-box;
   transition: margin-left 0.25s ease;
+  min-height: calc(100vh - 24px);
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+/* 当侧边栏打开时调整内容区域 */
+@media (min-width: 900px) {
+  .content-area.sidebar-open {
+    margin-left: 220px;
+  }
 }
 
 /* Route transition: simple fade to reduce perceived flicker */

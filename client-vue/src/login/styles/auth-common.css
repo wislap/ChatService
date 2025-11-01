@@ -1,10 +1,12 @@
 .auth-container {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 20px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .auth-card {
@@ -14,7 +16,13 @@
   padding: 40px;
   width: 100%;
   max-width: 440px;
-  min-height: 600px;
+  height: calc(100vh - 40px);
+  max-height: 700px;
+  min-height: auto;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .auth-header {
@@ -112,4 +120,3 @@
     margin: 10px;
   }
 }
-

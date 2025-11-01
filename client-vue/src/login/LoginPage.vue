@@ -27,10 +27,12 @@
       </div>
 
       <!-- 表单内容 -->
-      <div class="auth-form">
-        <transition name="fade" mode="out-in">
-          <component :is="isLogin ? LoginForm : RegisterForm" />
-        </transition>
+      <div class="auth-form-container">
+        <div class="auth-form">
+          <transition name="fade" mode="out-in">
+            <component :is="isLogin ? LoginForm : RegisterForm" />
+          </transition>
+        </div>
       </div>
     </div>
   </div>
@@ -45,8 +47,31 @@ import RegisterForm from './components/RegisterForm.vue'
 const isLogin = ref(true)
 </script>
 
+<style scoped>
+.auth-form-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.auth-form {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  margin-right: -4px;
+}
+
+@media (max-width: 480px) {
+  .auth-form {
+    padding-right: 2px;
+    margin-right: -2px;
+  }
+}
+</style>
+
 <style>
 @import './styles/auth-common.css';
 @import './styles/auth-forms.css';
 </style>
-
