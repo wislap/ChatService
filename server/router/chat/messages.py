@@ -1,29 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.future import select
-from sqlalchemy import func, desc, asc
+from sqlalchemy import func, desc
 from typing import List, Optional
-import uuid
-import time
-from datetime import datetime
 
-from db.models import ChatMessage, User
-from db.database import AsyncSessionLocal
+from db.models import ChatMessage
+from db.database import get_async_session
 from logger import logger
 
 router = APIRouter()
 
 # --- Pydantic Models ---
-class MessageCreateRequest(BaseModel):
-    content: str
-    message_type: str = "text"
-    sender_name: str = "匿名用户"
-    alt_text: Optional[str] = None
-    timestamp: Optional[float] = None
-
 class MessageResponse(BaseModel):
-    id: str
-    sender: str
+    # 用户信息
+    user_id: int
+    username: str
+    # 消息信息
+    message_id: str
+    db_id: int
     content: str
     timestamp: float
     type: str
@@ -34,278 +28,103 @@ class MessageResponse(BaseModel):
     showButtons: bool = True
     customButtons: Optional[List[dict]] = None
 
-class MessageLikeRequest(BaseModel):
-    # 匿名点赞不需要用户ID，只需要请求体即可
-    pass
+class GetMessagesRequest(BaseModel):
+    # 分页参数
+    limit: Optional[int] = Field(None, ge=1, le=1000, description="返回消息数量限制")
 
-class MessageUpdateRequest(BaseModel):
-    content: str
-
-class PaginatedMessagesResponse(BaseModel):
+class MessagesListResponse(BaseModel):
     messages: List[MessageResponse]
     total: int
     has_more: bool
-    page: int
-    page_size: int
+
+# --- Helper Functions ---
+async def get_messages_from_db(session, limit=None):
+    """从数据库获取全部消息"""
+    try:
+        # 构建基本查询，只获取未删除的消息
+        query = select(ChatMessage).where(ChatMessage.is_deleted == 0)
+        
+        # 添加排序（按时间戳降序）
+        query = query.order_by(desc(ChatMessage.timestamp))
+        
+        # 添加限制
+        if limit:
+            query = query.limit(limit)
+        
+        logger.info(f"执行数据库查询，limit={limit}")
+        
+        result = await session.execute(query)
+        messages = result.scalars().all()
+        
+        logger.info(f"从数据库读取到 {len(messages)} 条消息")
+        
+        # 转换为响应格式
+        message_responses = []
+        for msg in messages:
+            response = MessageResponse(
+                user_id=msg.sender_id or 0,  # 如果 sender_id 为 None，使用 0
+                username=msg.sender_name,
+                message_id=msg.message_id,
+                db_id=msg.id,
+                content=msg.content,
+                timestamp=msg.timestamp,
+                type=msg.message_type,
+                alt=msg.alt_text,
+                likes=msg.likes,
+                editable=msg.is_editable,
+                showButtons=msg.show_buttons,
+                customButtons=msg.custom_buttons
+            )
+            message_responses.append(response)
+            
+            # 记录每条消息的详细信息
+            logger.info(f"消息详情: DB_ID={msg.id}, User_ID={msg.sender_id or 0}, Username={msg.sender_name}, Message_ID={msg.message_id}, Content={msg.content[:50]}...")
+        
+        # 计算总数
+        total_result = await session.execute(
+            select(func.count(ChatMessage.id)).where(ChatMessage.is_deleted == 0)
+        )
+        total = total_result.scalar()
+        
+        logger.info(f"数据库中未删除消息总数: {total}")
+        
+        has_more = limit is not None and len(messages) < total
+        
+        logger.info(f"返回结果: total={total}, has_more={has_more}")
+        
+        return MessagesListResponse(
+            messages=message_responses,
+            total=total,
+            has_more=has_more
+        )
+        
+    except Exception as e:
+        logger.error(f"Error fetching messages: {e}")
+        raise HTTPException(status_code=500, detail="获取消息失败")
 
 # --- API Endpoints ---
 
-@router.get("/messages/", response_model=PaginatedMessagesResponse)
-async def get_messages(
-    page: int = Query(1, ge=1, description="页码"),
-    page_size: int = Query(20, ge=1, le=100, description="每页大小"),
-    sort_order: str = Query("desc", regex="^(asc|desc)$", description="排序方式")
-):
+@router.post("/messages/", response_model=MessagesListResponse)
+async def get_messages(request: GetMessagesRequest):
+    
     """
-    获取聊天消息列表（分页）
+    获取全部消息列表
+    返回所有未删除的消息，支持限制返回数量
     """
-    async with AsyncSessionLocal() as session:
+    async with get_async_session() as session:
         try:
-            # 计算总数
-            total_result = await session.execute(
-                select(func.count(ChatMessage.id)).where(ChatMessage.is_deleted == False)
+            logger.info("=== 开始获取消息请求 ===")
+            # 获取消息
+            response = await get_messages_from_db(
+                session, 
+                request.limit
             )
-            total = total_result.scalar()
+            logger.info(f"=== 请求完成，返回 {len(response.messages)} 条消息 ===")
             
-            # 计算偏移量
-            offset = (page - 1) * page_size
-            
-            # 构建查询
-            query = select(ChatMessage).where(ChatMessage.is_deleted == False)
-            
-            # 排序：最新消息在前面
-            if sort_order == "desc":
-                query = query.order_by(desc(ChatMessage.timestamp))
-            else:
-                query = query.order_by(asc(ChatMessage.timestamp))
-            
-            # 分页
-            query = query.offset(offset).limit(page_size)
-            
-            result = await session.execute(query)
-            messages = result.scalars().all()
-            
-            # 转换为响应格式
-            message_responses = []
-            for msg in messages:
-                response = MessageResponse(
-                    id=msg.message_id,
-                    sender=msg.sender_name,
-                    content=msg.content,
-                    timestamp=msg.timestamp,
-                    type=msg.message_type,
-                    alt=msg.alt_text,
-                    likes=msg.likes,
-                    editable=msg.is_editable,
-                    showButtons=msg.show_buttons,
-                    customButtons=msg.custom_buttons
-                )
-                message_responses.append(response)
-            
-            has_more = offset + len(messages) < total
-            
-            return PaginatedMessagesResponse(
-                messages=message_responses,
-                total=total,
-                has_more=has_more,
-                page=page,
-                page_size=page_size
-            )
-            
-        except Exception as e:
-            logger.error(f"Error fetching messages: {e}")
-            raise HTTPException(status_code=500, detail="获取消息失败")
-
-@router.post("/messages/", response_model=MessageResponse)
-async def create_message(request: MessageCreateRequest):
-    """
-    创建新的聊天消息
-    """
-    async with AsyncSessionLocal() as session:
-        try:
-            # 生成唯一的消息ID（基于UUID和时间戳）
-            message_id = f"msg_{int(time.time() * 1000)}_{str(uuid.uuid4())[:8]}"
-            
-            # 如果没有提供时间戳，使用当前时间
-            timestamp = request.timestamp or time.time()
-            
-            # 创建新消息
-            new_message = ChatMessage(
-                message_id=message_id,
-                sender_name=request.sender_name,
-                content=request.content,
-                message_type=request.message_type,
-                alt_text=request.alt_text,
-                timestamp=timestamp
-            )
-            
-            session.add(new_message)
-            await session.commit()
-            await session.refresh(new_message)
-            
-            # 返回响应
-            return MessageResponse(
-                id=new_message.message_id,
-                sender=new_message.sender_name,
-                content=new_message.content,
-                timestamp=new_message.timestamp,
-                type=new_message.message_type,
-                alt=new_message.alt_text,
-                likes=new_message.likes,
-                editable=new_message.is_editable,
-                showButtons=new_message.show_buttons,
-                customButtons=new_message.custom_buttons
-            )
-            
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"Error creating message: {e}")
-            raise HTTPException(status_code=500, detail="创建消息失败")
-
-@router.post("/messages/{message_id}/like", response_model=dict)
-async def like_message(message_id: str, request: MessageLikeRequest):
-    """
-    点赞消息（匿名无限点赞）
-    """
-    async with AsyncSessionLocal() as session:
-        try:
-            # 查找消息
-            result = await session.execute(
-                select(ChatMessage).where(ChatMessage.message_id == message_id)
-            )
-            message = result.scalars().first()
-            
-            if not message:
-                raise HTTPException(status_code=404, detail="消息不存在")
-            
-            if message.is_deleted:
-                raise HTTPException(status_code=404, detail="消息已删除")
-            
-            # 执行匿名点赞操作
-            message.like()  # 匿名无限点赞，每次都增加点赞数
-            await session.commit()
-            
-            return {
-                "message_id": message_id,
-                "likes": message.likes,
-                "liked": True  # 匿名点赞总是返回True
-            }
+            return response
             
         except HTTPException:
             raise
         except Exception as e:
-            await session.rollback()
-            logger.error(f"Error liking message: {e}")
-            raise HTTPException(status_code=500, detail="点赞操作失败")
-
-@router.delete("/messages/{message_id}", response_model=dict)
-async def delete_message(message_id: str):
-    """
-    软删除消息
-    """
-    async with AsyncSessionLocal() as session:
-        try:
-            # 查找消息
-            result = await session.execute(
-                select(ChatMessage).where(ChatMessage.message_id == message_id)
-            )
-            message = result.scalars().first()
-            
-            if not message:
-                raise HTTPException(status_code=404, detail="消息不存在")
-            
-            # 软删除
-            message.is_deleted = True
-            await session.commit()
-            
-            return {"message": "消息删除成功", "message_id": message_id}
-            
-        except HTTPException:
-            raise
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"Error deleting message: {e}")
-            raise HTTPException(status_code=500, detail="删除消息失败")
-
-@router.put("/messages/{message_id}", response_model=MessageResponse)
-async def update_message(message_id: str, request: MessageUpdateRequest):
-    """
-    更新消息内容
-    """
-    async with AsyncSessionLocal() as session:
-        try:
-            # 查找消息
-            result = await session.execute(
-                select(ChatMessage).where(ChatMessage.message_id == message_id)
-            )
-            message = result.scalars().first()
-            
-            if not message:
-                raise HTTPException(status_code=404, detail="消息不存在")
-            
-            if not message.is_editable:
-                raise HTTPException(status_code=403, detail="消息不可编辑")
-            
-            # 更新内容
-            message.content = request.content
-            message.updated_at = datetime.utcnow()
-            await session.commit()
-            await session.refresh(message)
-            
-            # 返回更新后的消息
-            return MessageResponse(
-                id=message.message_id,
-                sender=message.sender_name,
-                content=message.content,
-                timestamp=message.timestamp,
-                type=message.message_type,
-                alt=message.alt_text,
-                likes=message.likes,
-                editable=message.is_editable,
-                showButtons=message.show_buttons,
-                customButtons=message.custom_buttons
-            )
-            
-        except HTTPException:
-            raise
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"Error updating message: {e}")
-            raise HTTPException(status_code=500, detail="更新消息失败")
-
-@router.get("/messages/{message_id}", response_model=MessageResponse)
-async def get_message(message_id: str):
-    """
-    获取单个消息详情
-    """
-    async with AsyncSessionLocal() as session:
-        try:
-            result = await session.execute(
-                select(ChatMessage).where(ChatMessage.message_id == message_id)
-            )
-            message = result.scalars().first()
-            
-            if not message:
-                raise HTTPException(status_code=404, detail="消息不存在")
-            
-            if message.is_deleted:
-                raise HTTPException(status_code=404, detail="消息已删除")
-            
-            return MessageResponse(
-                id=message.message_id,
-                sender=message.sender_name,
-                content=message.content,
-                timestamp=message.timestamp,
-                type=message.message_type,
-                alt=message.alt_text,
-                likes=message.likes,
-                editable=message.is_editable,
-                showButtons=message.show_buttons,
-                customButtons=message.custom_buttons
-            )
-            
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error fetching message: {e}")
+            logger.error(f"Error in get_messages: {e}")
             raise HTTPException(status_code=500, detail="获取消息失败")
