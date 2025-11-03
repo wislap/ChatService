@@ -1,0 +1,24 @@
+syntax = "proto3";
+package ChatMessageResponse;
+
+message ChatMessageResponse {
+    int32 user_id = 1;
+    string username = 2;
+    string message_id = 3;
+    int32 db_id = 4;
+    string content = 5;
+    double timestamp = 6;
+    string type = 7;
+    string alt = 8;
+    int32 likes = 9;
+    bool liked = 10;
+    bool editable = 11;
+    bool show_buttons = 12;
+    string custom_buttons = 13;
+}
+
+message MessagesListResponse {
+    repeated ChatMessageResponse messages = 1;
+    int32 total = 2;
+    bool has_more = 3;
+}

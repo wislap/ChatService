@@ -1,12 +1,11 @@
 <template>
   <div class="message-bubble" :class="bubbleClass">
-    <!-- Header with timestamp, sender, and message ID -->
+    <!-- Header with timestamp, sender -->
     <div class="message-header">
       <div class="message-meta">
         <span class="sender">{{ message.sender }}</span>
-        <span class="message-id">ID: {{ message.id }}</span>
+        <span class="timestamp">{{ formatTimestamp(message.timestamp) }}</span>
       </div>
-      <div class="timestamp">{{ formatTimestamp(message.timestamp) }}</div>
     </div>
 
     <!-- Message content with markdown rendering -->
@@ -51,7 +50,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import MarkdownIt from 'markdown-it'
-import * as markdownItEmoji from 'markdown-it-emoji'
 import markdownItSub from 'markdown-it-sub'
 import markdownItSup from 'markdown-it-sup'
 import markdownItMark from 'markdown-it-mark'
@@ -115,80 +113,29 @@ const md = new MarkdownIt({
       try {
         return hljs.highlight(str, { language: lang }).value
       } catch {
-        // Ignore errors
+        // Ignore errors silently
       }
     }
     return '' // Use external default escaping
   }
 })
 
-// 插件解析函数（修复emoji支持 - 使用更通用的方式）
-const resolvePlugin = (p: unknown): Function | null => {
-  if (typeof p === 'function') return p
-  if (p && typeof (p as any).default === 'function') return (p as any).default
-
-  // 特殊处理emoji插件 - 尝试常见的属性名
-  if (p && typeof p === 'object' && p !== null) {
-    const obj = p as any
-    // 尝试常见的markdown-it插件属性名
-    const possibleKeys = ['replace', 'render', 'plugin', 'default', 'emoji']
-
-    for (const key of possibleKeys) {
-      if (key in obj && typeof obj[key] === 'function') {
-        console.log(`[MessageBubble] Found ${key} function in plugin object, using it`)
-        return obj[key]
-      }
-    }
-
-    // 如果没有找到函数，检查是否是数组中的第一个元素
-    if (Array.isArray(obj) && obj.length > 0 && typeof obj[0] === 'function') {
-      console.log('[MessageBubble] Found function in array[0], using it')
-      return obj[0]
-    }
-  }
-
-  return null
-}
-
-const emojiPlugin = resolvePlugin(markdownItEmoji)
-const subPlugin = resolvePlugin(markdownItSub)
-const supPlugin = resolvePlugin(markdownItSup)
-const markPlugin = resolvePlugin(markdownItMark)
-const katexPlugin = resolvePlugin(markdownItKatex)
-
-// 注册插件（带错误处理和类型断言）
+// 简化插件注册
 const registerPlugins = () => {
-  try {
-    if (emojiPlugin) {
-      console.log('[MessageBubble] Registering emoji plugin')
-      md.use(emojiPlugin as any) // 表情支持 :smile:
-    } else {
-      console.warn('[MessageBubble] markdown-it-emoji plugin not available or invalid')
-    }
-    if (subPlugin) {
-      console.log('[MessageBubble] Registering sub plugin')
-      md.use(subPlugin as any)        // 下标 H~2~O
-    }
-    if (supPlugin) {
-      console.log('[MessageBubble] Registering sup plugin')
-      md.use(supPlugin as any)        // 上标 X^2^
-    }
-    if (markPlugin) {
-      console.log('[MessageBubble] Registering mark plugin')
-      md.use(markPlugin as any)      // 高亮 ==marked==
-    }
-    if (katexPlugin) {
-      console.log('[MessageBubble] Registering katex plugin')
-      md.use(katexPlugin as any, {    // LaTeX 数学公式
-        throwOnError: false,
-        errorColor: '#cc0000'
-      })
-    } else {
-      console.warn('[MessageBubble] markdown-it-katex plugin not available or invalid')
-    }
-  } catch (error) {
-    console.warn('[MessageBubble] Failed to register plugins:', error)
-  }
+  // 下标 H~2~O
+  md.use(markdownItSub)
+
+  // 上标 X^2^
+  md.use(markdownItSup)
+
+  // 高亮 ==marked==
+  md.use(markdownItMark)
+
+  // LaTeX 数学公式
+  md.use(markdownItKatex, {
+    throwOnError: false,
+    errorColor: '#cc0000'
+  })
 }
 
 // 立即注册插件
@@ -217,8 +164,7 @@ const renderedMarkdown = computed(() => {
       ],
       ALLOWED_ATTR: ['href', 'class', 'style']
     })
-  } catch (error) {
-    console.warn('[MessageBubble] Failed to render markdown:', error)
+  } catch {
     return DOMPurify.sanitize(props.message.content)
   }
 })
@@ -295,11 +241,6 @@ const formatTimestamp = (timestamp: number | Date): string => {
   font-weight: 600;
 }
 
-.message-id {
-  font-family: 'Courier New', monospace;
-  font-size: 0.75rem;
-}
-
 .timestamp {
   font-size: 0.75rem;
   white-space: nowrap;
@@ -310,10 +251,6 @@ const formatTimestamp = (timestamp: number | Date): string => {
   line-height: 1.6;
   word-wrap: break-word;
   margin-bottom: 12px;
-}
-
-.markdown-content {
-  /* Markdown-specific styles */
 }
 
 .markdown-content :deep(p) {
@@ -369,13 +306,6 @@ const formatTimestamp = (timestamp: number | Date): string => {
 .markdown-content :deep(ol) {
   margin: 8px 0;
   padding-left: 24px;
-}
-
-/* Emoji styles */
-.markdown-content :deep(.emoji) {
-  vertical-align: middle;
-  width: 1.2em;
-  height: 1.2em;
 }
 
 /* Mark (highlight) styles */
@@ -462,18 +392,5 @@ const formatTimestamp = (timestamp: number | Date): string => {
 .delete-button:hover {
   background: rgba(220, 53, 69, 0.1);
   color: #dc3545;
-}
-
-/* Type-specific styles */
-.message-type-markdown {
-  /* Additional styles for markdown messages */
-}
-
-.message-type-text {
-  /* Additional styles for text messages */
-}
-
-.message-type-image {
-  /* Additional styles for image messages */
 }
 </style>

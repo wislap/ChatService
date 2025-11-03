@@ -94,7 +94,7 @@ const handleLogin = async () => {
 
   // 在这里处理登录逻辑
   try {
-    const res = await api.post<LoginResponse>('/user/login/', {
+    const res = await api.post<LoginResponse>('/api/user/login/', {
       email: loginForm.value.email,
       password: loginForm.value.password
     })

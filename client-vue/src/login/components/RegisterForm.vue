@@ -223,7 +223,7 @@ const closeVerificationModal = () => {
 const sendVerificationCode = async () => {
   console.log(`正在向 ${registerForm.value.email} 发送验证码...`)
   try {
-    await api.post('/user/register1', {
+    await api.post('/api/user/register1', {
       username: registerForm.value.lastName,
       password: registerForm.value.password,
       email: registerForm.value.email

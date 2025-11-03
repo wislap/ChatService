@@ -1,14 +1,24 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.future import select
 from sqlalchemy import func, desc
 from typing import List, Optional
+import json
+from datetime import datetime
 
 from db.models import ChatMessage
 from db.database import get_async_session
 from logger import logger
-
+import os
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
 router = APIRouter()
+from ChatMessage_pb2 import (
+    ChatMessageResponse as PBChatMessageResponse,
+    MessagesListResponse as PBMessagesListResponse,
+)
 
 # --- Pydantic Models ---
 class MessageResponse(BaseModel):
@@ -37,9 +47,22 @@ class MessagesListResponse(BaseModel):
     total: int
     has_more: bool
 
+class CreateMessageRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=1000, description="消息内容")
+    sender_id: Optional[int] = Field(None, description="发送者ID")
+    sender_name: str = Field(..., min_length=1, max_length=50, description="发送者名称")
+    message_type: str = Field("text", description="消息类型")
+
+class CreateMessageResponse(BaseModel):
+    success: bool
+    message_id: Optional[str] = None
+    db_id: Optional[int] = None
+    timestamp: Optional[float] = None
+    error: Optional[str] = None
+
 # --- Helper Functions ---
 async def get_messages_from_db(session, limit=None):
-    """从数据库获取全部消息"""
+    """从数据库获取消息"""
     try:
         # 构建基本查询，只获取未删除的消息
         query = select(ChatMessage).where(ChatMessage.is_deleted == 0)
@@ -102,11 +125,55 @@ async def get_messages_from_db(session, limit=None):
         logger.error(f"Error fetching messages: {e}")
         raise HTTPException(status_code=500, detail="获取消息失败")
 
+async def create_message(message_data: CreateMessageRequest):
+    """创建新消息"""
+    async with get_async_session() as session:
+        try:
+            # 生成消息ID和时间戳
+            message_id = f"msg_{int(datetime.now().timestamp() * 1000000)}"
+            timestamp = datetime.now().timestamp()
+            
+            # 创建新消息
+            new_message = ChatMessage(
+                message_id=message_id,
+                sender_id=message_data.sender_id,
+                sender_name=message_data.sender_name,
+                content=message_data.content,
+                message_type=message_data.message_type,
+                timestamp=timestamp,
+                likes=0,
+                is_editable=True,
+                show_buttons=True,
+                custom_buttons=None,
+                alt_text=None,
+                is_deleted=False
+            )
+            
+            session.add(new_message)
+            await session.commit()
+            await session.refresh(new_message)
+            
+            logger.info(f"新消息已创建: {message_id}, DB_ID={new_message.id}")
+            
+            return CreateMessageResponse(
+                success=True,
+                message_id=message_id,
+                db_id=new_message.id,
+                timestamp=timestamp
+            )
+            
+        except Exception as e:
+            logger.error(f"Error creating message: {e}")
+            await session.rollback()
+            return CreateMessageResponse(
+                success=False,
+                error=str(e)
+            )
+
 # --- API Endpoints ---
 
 @router.post("/messages/", response_model=MessagesListResponse)
 async def get_messages(request: GetMessagesRequest):
-    
     """
     获取全部消息列表
     返回所有未删除的消息，支持限制返回数量
@@ -128,3 +195,74 @@ async def get_messages(request: GetMessagesRequest):
         except Exception as e:
             logger.error(f"Error in get_messages: {e}")
             raise HTTPException(status_code=500, detail="获取消息失败")
+
+@router.post("/messages/send", response_model=CreateMessageResponse)
+async def send_message(request: CreateMessageRequest):
+    """
+    发送新消息
+    """
+    try:
+        logger.info(f"收到新消息发送请求: {request.sender_name} - {request.content}")
+        
+        # 创建消息
+        result = await create_message(request)
+        
+        if result.success:
+            logger.info(f"消息发送成功: {result.message_id}")
+            return result
+        else:
+            logger.error(f"消息发送失败: {result.error}")
+            raise HTTPException(status_code=500, detail=f"消息发送失败: {result.error}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in send_message: {e}")
+        raise HTTPException(status_code=500, detail="发送消息失败")
+
+@router.post("/messages/protobuf", response_class=Response)
+async def get_messages_protobuf(request: GetMessagesRequest):
+    """
+    以 Protobuf 二进制形式返回消息列表
+    Content-Type: application/x-protobuf
+    """
+    async with get_async_session() as session:
+        try:
+            db_resp = await get_messages_from_db(session, request.limit)
+            
+            # 组装 Protobuf
+            pb_list = PBMessagesListResponse()
+            for item in db_resp.messages:
+                pb_msg = PBChatMessageResponse(
+                    user_id=item.user_id,
+                    username=item.username,
+                    message_id=item.message_id,
+                    db_id=item.db_id,
+                    content=item.content,
+                    timestamp=item.timestamp,
+                    type=item.type,
+                    alt=item.alt or "",
+                    likes=item.likes,
+                    liked=item.liked,
+                    editable=item.editable,
+                    show_buttons=item.showButtons,
+                    custom_buttons=(
+                        json.dumps(item.customButtons, ensure_ascii=False)
+                        if item.customButtons is not None else ""
+                    ),
+                )
+                pb_list.messages.append(pb_msg)
+            pb_list.total = db_resp.total
+            pb_list.has_more = db_resp.has_more
+
+            payload = pb_list.SerializeToString()
+            return Response(
+                content=payload,
+                media_type="application/x-protobuf",
+                headers={"Content-Disposition": 'attachment; filename="messages.pb"'},
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error in get_messages_protobuf: {e}")
+            raise HTTPException(status_code=500, detail="获取 Protobuf 消息失败")

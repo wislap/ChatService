@@ -16,4 +16,5 @@ dependencies = [
     "python-jose>=3.5.0",
     "sqlalchemy>=2.0.43",
     "uvicorn>=0.35.0",
+    "websockets>=15.0.1",
 ]

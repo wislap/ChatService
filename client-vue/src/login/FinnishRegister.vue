@@ -53,7 +53,7 @@ onMounted(async () => {
   }
 
   try {
-    await api.get(`/user/verify-email/?token=${token}`);
+    await api.get(`/api/user/verify-email/?token=${token}`);
     verificationStatus.value = 'success';
     startCountdown();
   } catch (error: unknown) {

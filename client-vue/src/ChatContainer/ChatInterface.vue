@@ -46,15 +46,18 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { GetSpecificMessages } from '../idb'
 import ChatContainer from './ChatContainer.vue'
 import type { MessageData } from './MessageBubble.vue'
+import api from '../utils/api'
+import { decodeMessagesFromProtobuf, transformProtobufMessages } from '../utils/protobuf'
 
 interface ExtendedMessageData extends MessageData {
   editable?: boolean
   showButtons?: boolean
   likes?: number
   liked?: boolean
+  db_id?: number
+  user_id?: number
 }
 
 interface DbMessage {
@@ -65,6 +68,8 @@ interface DbMessage {
   type?: string
   likes?: number
   liked?: boolean
+  db_id?: number
+  user_id?: number
 }
 
 // Reactive data
@@ -73,6 +78,7 @@ const inputMessage = ref('')
 const messageType = ref<'text' | 'markdown'>('markdown')
 const messages = ref<DbMessage[]>([])
 const currentUserId = 'current-user'
+const loading = ref(false)
 
 // Generate unique ID
 const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9)
@@ -89,7 +95,9 @@ const formattedMessages = computed((): ExtendedMessageData[] => {
       likes: msg.likes || 0,
       liked: msg.liked || false,
       editable: true,
-      showButtons: true
+      showButtons: true,
+      db_id: msg.db_id,
+      user_id: msg.user_id
     }))
     .sort((a, b) => {
       // 按时间倒序排列，最新的在上面
@@ -98,6 +106,86 @@ const formattedMessages = computed((): ExtendedMessageData[] => {
       return timeB - timeA
     })
 })
+
+// 从后端获取protobuf消息
+const loadMessagesFromProtobuf = async () => {
+  try {
+    loading.value = true
+    console.log('开始从后端获取protobuf消息...')
+
+    const response = await api.post('/api/messages/protobuf', {
+      limit: 1000
+    }, {
+      responseType: 'arraybuffer',
+      headers: {
+        'Accept': 'application/x-protobuf'
+      }
+    })
+
+    console.log('获取到protobuf数据，长度:', response.data.byteLength)
+
+    // 解析protobuf数据
+    const decodedData = await decodeMessagesFromProtobuf(response.data)
+    console.log('解码后的数据:', decodedData)
+
+    // 转换为组件需要的格式
+    const transformedData = transformProtobufMessages(decodedData)
+    console.log('转换后的数据:', transformedData)
+
+    // 更新消息列表
+    messages.value = transformedData.messages.map(msg => ({
+      id: msg.id,
+      content: msg.content,
+      sender: msg.sender,
+      timestamp: msg.timestamp,
+      type: msg.type,
+      likes: msg.likes,
+      liked: msg.liked,
+      db_id: msg.db_id,
+      user_id: msg.user_id
+    }))
+
+    console.log(`成功加载 ${messages.value.length} 条消息`)
+
+  } catch (error) {
+    console.error('获取protobuf消息失败:', error)
+
+    // 如果获取失败，设置为空数组
+    messages.value = []
+
+    // 显示欢迎消息
+    setTimeout(() => {
+      const welcomeMessage: ExtendedMessageData = {
+        id: generateId(),
+        sender: 'system',
+        content: '# 欢迎来到表白墙! 💌\n\n这里可以：\n- 写下你的表白或想法\n- 使用 **Markdown** 格式\n- 添加数学公式 $$E=mc^2$$\n- 表情符号 :smile: 和上标下标\n\n点赞 ❤️ 你喜欢的表白，删除不需要的内容。\n\n开始你的第一次表白吧!',
+        timestamp: new Date(),
+        type: 'markdown',
+        likes: 0,
+        liked: false,
+        editable: false,
+        showButtons: false
+      }
+
+      if (chatContainer.value) {
+        chatContainer.value.addMessage(welcomeMessage)
+      }
+
+      // 同时添加到本地消息列表
+      messages.value.unshift({
+        id: welcomeMessage.id,
+        content: welcomeMessage.content,
+        sender: welcomeMessage.sender,
+        timestamp: welcomeMessage.timestamp,
+        type: welcomeMessage.type,
+        likes: welcomeMessage.likes,
+        liked: welcomeMessage.liked
+      })
+    }, 500)
+  } finally {
+    loading.value = false
+  }
+}
 
 // Send message
 const sendMessage = () => {
@@ -178,43 +266,15 @@ const handleMessagesChange = (messages: ExtendedMessageData[]) => {
   console.log('Messages changed:', messages.length, 'messages')
 }
 
-// Fetch messages from database when component is mounted
+// Fetch messages from backend using protobuf when component is mounted
 onMounted(async () => {
   try {
-    const { message } = await GetSpecificMessages('GaMessages')
-    messages.value = message || []
-    console.log('Messages loaded:', messages.value)
+    // 首先尝试从后端获取protobuf消息
+    await loadMessagesFromProtobuf()
 
-    // If there are no messages, add a welcome message
+    // 如果没有获取到消息，onMounted已经处理了
     if (messages.value.length === 0) {
-      setTimeout(() => {
-        const welcomeMessage: ExtendedMessageData = {
-          id: generateId(),
-          sender: 'system',
-          content: '# 欢迎来到表白墙! 💌\n\n这里可以：\n- 写下你的表白或想法\n- 使用 **Markdown** 格式\n- 添加数学公式 $$E=mc^2$$\n- 表情符号 :smile: 和上标下标\n\n点赞 ❤️ 你喜欢的表白，删除不需要的内容。\n\n开始你的第一次表白吧!',
-          timestamp: new Date(),
-          type: 'markdown',
-          likes: 0,
-          liked: false,
-          editable: false,
-          showButtons: false
-        }
-
-        if (chatContainer.value) {
-          chatContainer.value.addMessage(welcomeMessage)
-        }
-
-        // 同时添加到本地消息列表
-        messages.value.unshift({
-          id: welcomeMessage.id,
-          content: welcomeMessage.content,
-          sender: welcomeMessage.sender,
-          timestamp: welcomeMessage.timestamp,
-          type: welcomeMessage.type,
-          likes: welcomeMessage.likes,
-          liked: welcomeMessage.liked
-        })
-      }, 500)
+      console.log('未获取到消息，显示欢迎消息')
     }
   } catch (error) {
     console.error('Error loading messages:', error)

@@ -179,7 +179,7 @@ async def verify_email(token: str):
     for req in request_db:
         # Check if the token matches and it has not been verified yet
         if req["request_data"]["token"] == token and not req["verified"]:
-            # req["verified"] = True
+            req["verified"] = True  # 标记为已验证，避免重复使用
             
             async with AsyncSessionLocal() as session:
                 # 检查是否已存在
@@ -248,4 +248,3 @@ async def login_user(request: UserLoginRequest):
             "token": token,
             "expires_in": expires_in,
         }
-

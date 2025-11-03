@@ -45,12 +45,6 @@ const routes = [
         ]
       },
       {
-        path: 'wall',
-        name: 'WallPage',
-        component: () => import('../views/wall/WallPage.vue'),
-        meta: { title: '表白墙' }
-      },
-      {
         path: 'chat',
         name: 'Chat',
         component: ChatInterface,

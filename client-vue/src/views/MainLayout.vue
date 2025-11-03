@@ -21,12 +21,6 @@
             </RouterLink>
           </li>
           <li class="nav-item">
-            <RouterLink to="/wall" class="nav-link" active-class="active">
-              <span class="nav-marker" aria-hidden="true"></span>
-              <span class="nav-label">表白墙</span>
-            </RouterLink>
-          </li>
-          <li class="nav-item">
             <RouterLink to="/chat" class="nav-link" active-class="active">
               <span class="nav-marker" aria-hidden="true"></span>
               <span class="nav-label">聊天</span>
