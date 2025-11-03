@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.future import select
-from sqlalchemy import func, desc
+from sqlalchemy import func, asc, desc
 from typing import List, Optional
 import json
 from datetime import datetime
@@ -68,7 +68,8 @@ async def get_messages_from_db(session, limit=None):
         query = select(ChatMessage).where(ChatMessage.is_deleted == 0)
         
         # 添加排序（按时间戳降序）
-        query = query.order_by(desc(ChatMessage.timestamp))
+        query = query.order_by(asc(ChatMessage.timestamp))
+        # query = query.order_by(desc(ChatMessage.id)) 
         
         # 添加限制
         if limit:
@@ -101,7 +102,7 @@ async def get_messages_from_db(session, limit=None):
             message_responses.append(response)
             
             # 记录每条消息的详细信息
-            logger.info(f"消息详情: DB_ID={msg.id}, User_ID={msg.sender_id or 0}, Username={msg.sender_name}, Message_ID={msg.message_id}, Content={msg.content[:50]}...")
+            # logger.info(f"消息详情: DB_ID={msg.id}, User_ID={msg.sender_id or 0}, Username={msg.sender_name}, Message_ID={msg.message_id}, Content={msg.content[:50]}...")
         
         # 计算总数
         total_result = await session.execute(

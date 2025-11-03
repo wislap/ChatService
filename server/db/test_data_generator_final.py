@@ -131,7 +131,7 @@ async def main():
     
     # 可配置参数
     NUM_USERS = 5      # 创建的用户数量
-    NUM_MESSAGES = 50  # 生成的消息数量
+    NUM_MESSAGES = 5  # 生成的消息数量
     LIKE_PROBABILITY = 0.4  # 消息被点赞的概率
     
     async with AsyncSessionLocal() as session:
