@@ -34,7 +34,7 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import '../login/styles/auth-common.css'
+import '../login/auth-common.css'
 
 const router = useRouter()
 

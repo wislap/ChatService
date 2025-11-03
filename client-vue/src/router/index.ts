@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import LoginPage from '../login/LoginPage.vue'
 import FinnishRegister from '../login/FinnishRegister.vue'
-import MainLayout from '../views/MainLayout.vue'
+import MainLayout from '../MainLayout.vue'
 import Announcement from '../views/Announcement.vue'
 import ChatInterface from '../ChatContainer/ChatInterface.vue'
 

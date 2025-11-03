@@ -40,8 +40,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import LoginForm from './components/LoginForm.vue'
-import RegisterForm from './components/RegisterForm.vue'
+import LoginForm from './LoginForm.vue'
+import RegisterForm from './RegisterForm.vue'
 
 // 控制显示登录还是注册
 const isLogin = ref(true)
@@ -72,6 +72,6 @@ const isLogin = ref(true)
 </style>
 
 <style>
-@import './styles/auth-common.css';
-@import './styles/auth-forms.css';
+@import 'auth-common.css';
+@import 'auth-forms.css';
 </style>
