@@ -1,12 +1,13 @@
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Response, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.future import select
 from sqlalchemy import func, asc, desc
 from typing import List, Optional
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
+from jose import jwt, JWTError
 
-from db.models import ChatMessage
+from db.models import ChatMessage, User
 from db.database import get_async_session
 from logger import logger
 import os
@@ -14,11 +15,53 @@ import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
+
+# JWT配置
+SECRET_KEY = "your_secret"
+
 router = APIRouter()
 from ChatMessage_pb2 import (
     ChatMessageResponse as PBChatMessageResponse,
     MessagesListResponse as PBMessagesListResponse,
 )
+
+# --- JWT验证函数 ---
+async def get_current_user(request: Request):
+    """验证JWT token并获取当前用户信息"""
+    try:
+        # 从Authorization header中获取token
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail={"code": "NO_TOKEN", "message": "未提供认证token"})
+        
+        token = auth_header.split(" ")[1]  # 移除 "Bearer " 前缀
+        
+        # 验证token
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            user_id: str = payload.get("sub")
+            if user_id is None:
+                raise HTTPException(status_code=401, detail={"code": "INVALID_TOKEN", "message": "无效的认证token"})
+        except JWTError:
+            raise HTTPException(status_code=401, detail={"code": "INVALID_TOKEN", "message": "无效的认证token"})
+        
+        # 从数据库获取用户信息
+        async with get_async_session() as session:
+            result = await session.execute(select(User).where(User.id == int(user_id)))
+            user = result.scalars().first()
+            if user is None:
+                raise HTTPException(status_code=401, detail={"code": "USER_NOT_FOUND", "message": "用户不存在"})
+            
+            if user.is_banned:
+                raise HTTPException(status_code=403, detail={"code": "USER_BANNED", "message": "账户已被封禁"})
+            
+            return user
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_current_user: {e}")
+        raise HTTPException(status_code=500, detail={"code": "SERVER_ERROR", "message": "服务器内部错误"})
 
 # --- Pydantic Models ---
 class MessageResponse(BaseModel):
@@ -49,8 +92,6 @@ class MessagesListResponse(BaseModel):
 
 class CreateMessageRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=1000, description="消息内容")
-    sender_id: Optional[int] = Field(None, description="发送者ID")
-    sender_name: str = Field(..., min_length=1, max_length=50, description="发送者名称")
     message_type: str = Field("text", description="消息类型")
 
 class CreateMessageResponse(BaseModel):
@@ -126,7 +167,7 @@ async def get_messages_from_db(session, limit=None):
         logger.error(f"Error fetching messages: {e}")
         raise HTTPException(status_code=500, detail="获取消息失败")
 
-async def create_message(message_data: CreateMessageRequest):
+async def create_message(message_data: CreateMessageRequest, user: User):
     """创建新消息"""
     async with get_async_session() as session:
         try:
@@ -137,8 +178,8 @@ async def create_message(message_data: CreateMessageRequest):
             # 创建新消息
             new_message = ChatMessage(
                 message_id=message_id,
-                sender_id=message_data.sender_id,
-                sender_name=message_data.sender_name,
+                sender_id=user.id,  # 从JWT获取的用户ID
+                sender_name=user.username,  # 从JWT获取的用户名
                 content=message_data.content,
                 message_type=message_data.message_type,
                 timestamp=timestamp,
@@ -198,15 +239,15 @@ async def get_messages(request: GetMessagesRequest):
             raise HTTPException(status_code=500, detail="获取消息失败")
 
 @router.post("/messages/send", response_model=CreateMessageResponse)
-async def send_message(request: CreateMessageRequest):
+async def send_message(request: CreateMessageRequest, current_user: User = Depends(get_current_user)):
     """
-    发送新消息
+    发送新消息（需要JWT认证）
     """
     try:
-        logger.info(f"收到新消息发送请求: {request.sender_name} - {request.content}")
+        logger.info(f"收到新消息发送请求: {current_user.username} - {request.content}")
         
         # 创建消息
-        result = await create_message(request)
+        result = await create_message(request, current_user)
         
         if result.success:
             logger.info(f"消息发送成功: {result.message_id}")

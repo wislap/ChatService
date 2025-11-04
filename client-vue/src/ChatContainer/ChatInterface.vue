@@ -33,11 +33,12 @@
         ></textarea>
         <button
           @click="sendMessage"
-          :disabled="!inputMessage.trim()"
+          :disabled="!inputMessage.trim() || sending"
           class="send-button"
         >
-          <span class="send-icon">💌</span>
-          表白
+          <span v-if="sending" class="loading-spinner">⏳</span>
+          <span v-else class="send-icon">💌</span>
+          {{ sending ? '发送中' : '表白' }}
         </button>
       </div>
     </div>
@@ -79,6 +80,7 @@ const messageType = ref<'text' | 'markdown'>('markdown')
 const messages = ref<DbMessage[]>([])
 const currentUserId = 'current-user'
 const loading = ref(false)
+const sending = ref(false)
 
 // Generate unique ID
 const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9)
@@ -113,30 +115,17 @@ const loadMessagesFromProtobuf = async () => {
     loading.value = true
     console.log('开始从后端获取protobuf消息...')
 
-    const response = await api.post('/api/messages/protobuf', {
+    const response = await api.post('/api/messages/', {
       limit: 1000
-    }, {
-      responseType: 'arraybuffer',
-      headers: {
-        'Accept': 'application/x-protobuf'
-      }
     })
 
-    console.log('获取到protobuf数据，长度:', response.data.byteLength)
-
-    // 解析protobuf数据
-    const decodedData = await decodeMessagesFromProtobuf(response.data)
-    console.log('解码后的数据:', decodedData)
-
-    // 转换为组件需要的格式
-    const transformedData = transformProtobufMessages(decodedData)
-    console.log('转换后的数据:', transformedData)
+    console.log('获取到消息数据:', response.data)
 
     // 更新消息列表
-    messages.value = transformedData.messages.map(msg => ({
-      id: msg.id,
+    messages.value = response.data.messages.map((msg: any) => ({
+      id: msg.message_id,
       content: msg.content,
-      sender: msg.sender,
+      sender: msg.username,
       timestamp: msg.timestamp,
       type: msg.type,
       likes: msg.likes,
@@ -148,7 +137,7 @@ const loadMessagesFromProtobuf = async () => {
     console.log(`成功加载 ${messages.value.length} 条消息`)
 
   } catch (error) {
-    console.error('获取protobuf消息失败:', error)
+    console.error('获取消息失败:', error)
 
     // 如果获取失败，设置为空数组
     messages.value = []
@@ -187,38 +176,52 @@ const loadMessagesFromProtobuf = async () => {
   }
 }
 
-// Send message
-const sendMessage = () => {
-  if (!inputMessage.value.trim()) return
+// Send message - 使用新的后端接口
+const sendMessage = async () => {
+  if (!inputMessage.value.trim() || sending.value) return
 
-  const message: ExtendedMessageData = {
-    id: generateId(),
-    sender: currentUserId,
-    content: inputMessage.value.trim(),
-    timestamp: new Date(),
-    type: messageType.value,
-    likes: 0,
-    liked: false,
-    editable: true,
-    showButtons: true
+  // 检查是否有登录状态
+  const token = sessionStorage.getItem('token')
+  if (!token) {
+    console.error('未登录，请先登录')
+    alert('请先登录后再发送消息')
+    return
   }
 
-  if (chatContainer.value) {
-    chatContainer.value.addMessage(message)
-  }
-
-  // 添加到本地消息列表并保持倒序
-  messages.value.unshift({
-    id: message.id,
-    content: message.content,
-    sender: message.sender,
-    timestamp: message.timestamp,
-    type: message.type,
-    likes: message.likes,
-    liked: message.liked
-  })
-
+  const messageContent = inputMessage.value.trim()
   inputMessage.value = ''
+  sending.value = true
+
+  try {
+    // 调用新的后端接口发送消息
+    const response = await api.post('/api/messages/send', {
+      content: messageContent,
+      message_type: messageType.value
+    }, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+
+    console.log('消息发送成功:', response.data)
+
+    if (response.data.success) {
+      // 成功后重新加载消息列表
+      await loadMessagesFromProtobuf()
+      console.log('消息列表已刷新')
+    } else {
+      throw new Error(response.data.error || '发送失败')
+    }
+  } catch (error: any) {
+    console.error('发送消息失败:', error)
+    const errorMessage = error.response?.data?.detail?.message || error.message || '发送失败'
+    alert(`发送消息失败: ${errorMessage}`)
+
+    // 恢复输入框内容
+    inputMessage.value = messageContent
+  } finally {
+    sending.value = false
+  }
 }
 
 // Event handlers
@@ -266,10 +269,10 @@ const handleMessagesChange = (messages: ExtendedMessageData[]) => {
   console.log('Messages changed:', messages.length, 'messages')
 }
 
-// Fetch messages from backend using protobuf when component is mounted
+// Fetch messages from backend when component is mounted
 onMounted(async () => {
   try {
-    // 首先尝试从后端获取protobuf消息
+    // 首先尝试从后端获取消息
     await loadMessagesFromProtobuf()
 
     // 如果没有获取到消息，onMounted已经处理了
@@ -434,6 +437,16 @@ onMounted(async () => {
 
 .send-button:hover:not(:disabled) .send-icon {
   transform: rotate(15deg);
+}
+
+.loading-spinner {
+  font-size: 12px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* 响应式设计 */
